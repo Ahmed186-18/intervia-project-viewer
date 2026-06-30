@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Data Dashboard - Intervia</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS to parse Excel files -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- CryptoJS for Encryption -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <!-- Company Logo and Name integration -->
+                <div class="flex items-center gap-2">
+                    <!-- Replace the src below with your actual logo file path -->
+                    <img src="logo.png" alt="Intervia Logo" class="h-10 w-auto object-contain" onerror="this.style.display='none'">
+                    <span class="font-bold text-teal-700 text-xl tracking-wider hidden sm:block">INTERVIA</span>
+                </div>
+                <div class="h-6 w-px bg-gray-300 mx-1 hidden sm:block"></div>
+                <div>
+                    <h1 class="text-lg font-bold text-gray-900" id="headerTitle">Live Employee Dashboard</h1>
+                    <p class="text-xs text-gray-500">Auto-sync & Encrypted Link</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button id="adminBtn" class="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span>Settings & Sync</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        
+        <!-- Connection Status Banner -->
+        <div id="statusBanner" class="hidden mb-6 p-4 rounded-xl flex items-center justify-between transition-all duration-300">
+            <div class="flex items-center gap-3">
+                <div id="statusIcon" class="p-2 rounded-full"></div>
+                <div>
+                    <h3 class="font-semibold text-sm" id="statusTitle">Checking...</h3>
+                    <p class="text-xs opacity-90" id="statusDesc"></p>
+                </div>
+            </div>
+            <button id="retryBtn" class="hidden text-sm underline font-semibold"></button>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboardView" class="space-y-6">
+            <!-- Search and Controls -->
+            <div class="bg-white p-4 rounded-xl border border-gray-200 flex flex-col sm:flex-row gap-4 justify-between items-center shadow-sm">
+                <div class="relative w-full sm:w-96">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                        <i data-lucide="search" class="w-5 h-5"></i>
+                    </span>
+                    <input type="text" id="searchInput" placeholder="Search live data..." class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-sm">
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-3 text-xs text-gray-500 w-full sm:w-auto justify-end">
+                    <span class="flex items-center gap-1">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin hidden" id="spinIcon"></i>
+                        <span id="lastUpdatedText">Last Update: Never</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Live Data Table -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="dataTable">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-200 text-gray-600 text-xs font-bold tracking-wider">
+                                <!-- Dynamic Headers go here -->
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 text-sm">
+                            <!-- Dynamic Rows go here -->
+                            <tr>
+                                <td colspan="100%" class="text-center py-12 text-gray-400">
+                                    <div class="flex flex-col items-center gap-3">
+                                        <i data-lucide="database" class="w-12 h-12 text-gray-300"></i>
+                                        <p class="font-semibold text-gray-600">Waiting for configuration...</p>
+                                        <p class="text-xs max-w-md text-gray-400">Click the "Settings & Sync" button above and add your Dropbox link.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination / Info -->
+                <div class="bg-gray-50 px-6 py-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                    <span id="rowCountText">Rows displayed: 0</span>
+                    <span class="flex items-center gap-1">
+                        <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                        <span>Currently displaying the second sheet of the Excel file</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Settings View (Hidden by default) -->
+        <div id="settingsView" class="hidden max-w-2xl mx-auto bg-white border border-gray-200 rounded-2xl p-6 shadow-md space-y-6">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-4">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i data-lucide="settings-2" class="text-blue-600"></i>
+                    <span>Connection Settings</span>
+                </h2>
+                <button id="closeSettingsBtn" class="text-gray-400 hover:text-gray-600">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <form id="settingsForm" class="space-y-4">
+                <!-- Lock Password (Encrypted) -->
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Security PIN (Encrypted locally)</label>
+                    <input type="password" id="adminPin" placeholder="Set a numeric PIN to protect settings" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" required>
+                </div>
+
+                <!-- Dropbox URL (Encrypted) -->
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Dropbox Excel File Link</label>
+                    <input type="url" id="dropboxUrl" placeholder="https://www.dropbox.com/s/.../file.xlsx?dl=0" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" required>
+                    <p class="text-[11px] text-gray-400 mt-1">Paste the standard share link. The system will encrypt and convert it automatically.</p>
+                </div>
+
+                <!-- Title Override -->
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Dashboard Title</label>
+                    <input type="text" id="dashboardTitleInput" placeholder="e.g. Field Operations Status" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+                </div>
+
+                <!-- Columns Filter Configuration -->
+                <div class="border-t border-gray-100 pt-4">
+                    <h3 class="font-bold text-sm mb-2">Select Columns to Display</h3>
+                    <p class="text-xs text-gray-500 mb-3">Enter the column numbers you want to show, separated by commas (e.g., 1, 3, 5)</p>
+                    
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Column Numbers (e.g. 1, 3, 5)</label>
+                            <input type="text" id="visibleColumnsInput" placeholder="1, 3, 5" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1">Custom Column Headers (Optional - separated by commas)</label>
+                            <input type="text" id="columnNamesInput" placeholder="Name, Task, Status" class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-100 pt-4 flex gap-3">
+                    <button type="submit" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors">Save & Apply</button>
+                    <button type="button" id="clearSettingsBtn" class="bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2 px-4 rounded-lg text-sm transition-colors">Clear Settings</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- PIN Verification Modal -->
+        <div id="pinModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+                <div class="text-center">
+                    <div class="mx-auto bg-blue-50 text-blue-600 w-12 h-12 rounded-full flex items-center justify-center mb-2">
+                        <i data-lucide="lock" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="font-bold text-lg">Enter Security PIN</h3>
+                    <p class="text-xs text-gray-500">Please enter the PIN to access the settings panel</p>
+                </div>
+                <input type="password" id="pinInput" class="w-full text-center tracking-widest text-lg font-bold py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <div id="pinError" class="text-xs text-red-500 text-center hidden">Incorrect PIN!</div>
+                <div class="flex gap-2">
+                    <button id="submitPinBtn" class="flex-grow bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm">Confirm</button>
+                    <button id="cancelPinBtn" class="flex-grow bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg text-sm">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-100 py-4 text-center text-xs text-gray-400">
+        <p>© 2026 Intervia. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // --- Encryption Setup (AES-GCM Simulation via CryptoJS) ---
+        // This is a static secret key embedded in the code for local encryption/decryption
+        const SECRET_KEY = 'Intervia2026SecureKey!@#$%';
+
+        function encryptText(text) {
+            if (!text) return '';
+            return CryptoJS.AES.encrypt(text, SECRET_KEY).toString();
+        }
+
+        function decryptText(ciphertext) {
+            if (!ciphertext) return '';
+            try {
+                const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
+                return bytes.toString(CryptoJS.enc.Utf8);
+            } catch (e) {
+                return ''; // Return empty if decryption fails
+            }
+        }
+
+        // --- State Management ---
+        let appConfig = {
+            dropboxUrl: '',
+            dashboardTitle: 'Live Employee Dashboard',
+            visibleColumns: [1, 2, 3], // defaults
+            customColumnNames: [],
+            pin: ''
+        };
+        let rawExcelData = [];
+
+        // --- DOM Elements ---
+        const adminBtn = document.getElementById('adminBtn');
+        const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+        const clearSettingsBtn = document.getElementById('clearSettingsBtn');
+        const dashboardView = document.getElementById('dashboardView');
+        const settingsView = document.getElementById('settingsView');
+        const settingsForm = document.getElementById('settingsForm');
+        const headerTitle = document.getElementById('headerTitle');
+        const spinIcon = document.getElementById('spinIcon');
+        const lastUpdatedText = document.getElementById('lastUpdatedText');
+        const dataTable = document.getElementById('dataTable');
+        const searchInput = document.getElementById('searchInput');
+        const rowCountText = document.getElementById('rowCountText');
+        
+        // Status Banner
+        const statusBanner = document.getElementById('statusBanner');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusDesc = document.getElementById('statusDesc');
+        const retryBtn = document.getElementById('retryBtn');
+
+        // Pin Modal
+        const pinModal = document.getElementById('pinModal');
+        const pinInput = document.getElementById('pinInput');
+        const pinError = document.getElementById('pinError');
+        const submitPinBtn = document.getElementById('submitPinBtn');
+        const cancelPinBtn = document.getElementById('cancelPinBtn');
+
+        // Form Inputs
+        const adminPinInput = document.getElementById('adminPin');
+        const dropboxUrlInput = document.getElementById('dropboxUrl');
+        const dashboardTitleInput = document.getElementById('dashboardTitleInput');
+        const visibleColumnsInput = document.getElementById('visibleColumnsInput');
+        const columnNamesInput = document.getElementById('columnNamesInput');
+
+        // --- Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadConfig();
+            if (appConfig.dropboxUrl) {
+                fetchAndRenderData();
+            }
+        });
+
+        // --- Config Operations with Encryption ---
+        function loadConfig() {
+            const saved = localStorage.getItem('intervia_dashboard_config');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    // Decrypt sensitive data
+                    appConfig.dropboxUrl = decryptText(parsed.dropboxUrl) || '';
+                    appConfig.pin = decryptText(parsed.pin) || '';
+                    appConfig.dashboardTitle = parsed.dashboardTitle || 'Live Employee Dashboard';
+                    appConfig.visibleColumns = parsed.visibleColumns || [1, 2, 3];
+                    appConfig.customColumnNames = parsed.customColumnNames || [];
+                    
+                    headerTitle.textContent = appConfig.dashboardTitle;
+                    fillSettingsForm();
+                } catch (e) {
+                    console.error("Failed to load config", e);
+                }
+            }
+        }
+
+        function saveConfig() {
+            // Encrypt sensitive data before saving
+            const payload = {
+                dropboxUrl: encryptText(appConfig.dropboxUrl),
+                pin: encryptText(appConfig.pin),
+                dashboardTitle: appConfig.dashboardTitle,
+                visibleColumns: appConfig.visibleColumns,
+                customColumnNames: appConfig.customColumnNames
+            };
+            localStorage.setItem('intervia_dashboard_config', JSON.stringify(payload));
+            headerTitle.textContent = appConfig.dashboardTitle || 'Live Employee Dashboard';
+        }
+
+        function fillSettingsForm() {
+            adminPinInput.value = appConfig.pin || '';
+            dropboxUrlInput.value = appConfig.dropboxUrl || '';
+            dashboardTitleInput.value = appConfig.dashboardTitle || '';
+            visibleColumnsInput.value = appConfig.visibleColumns.join(', ');
+            columnNamesInput.value = appConfig.customColumnNames.join(', ');
+        }
+
+        // --- Convert & Handle Link ---
+        function convertToDirectLink(url) {
+            try {
+                let directUrl = url.trim();
+                let urlObj = new URL(directUrl);
+                
+                if (urlObj.hostname === 'www.dropbox.com' || urlObj.hostname === 'dropbox.com') {
+                    urlObj.hostname = 'dl.dropboxusercontent.com';
+                }
+                urlObj.searchParams.set('dl', '1');
+                return urlObj.toString();
+            } catch (e) {
+                let fallback = url.trim();
+                fallback = fallback.replace('www.dropbox.com', 'dl.dropboxusercontent.com');
+                if (fallback.includes('dl=0')) {
+                    fallback = fallback.replace('dl=0', 'dl=1');
+                } else if (!fallback.includes('dl=1')) {
+                    fallback += (fallback.includes('?') ? '&' : '?') + 'dl=1';
+                }
+                return fallback;
+            }
+        }
+
+        // --- Fetch & Render Data ---
+        async function fetchAndRenderData() {
+            if (!appConfig.dropboxUrl) return;
+
+            showLoadingState(true);
+            showStatus('loading', 'Fetching data from Dropbox...', 'Connecting securely to your encrypted link.');
+
+            const directLink = convertToDirectLink(appConfig.dropboxUrl);
+            let rawDataBuffer = null;
+            let success = false;
+            let lastErrorMessage = '';
+
+            const fetchAttempts = [
+                async () => {
+                    const res = await fetch(directLink);
+                    if (!res.ok) throw new Error(`Direct fetch status: ${res.status}`);
+                    return await res.arrayBuffer();
+                },
+                async () => {
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directLink)}`;
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error(`AllOrigins failed: ${res.status}`);
+                    const contentType = res.headers.get('content-type') || '';
+                    if (contentType.includes('text/html')) throw new Error("Proxy returned HTML");
+                    return await res.arrayBuffer();
+                },
+                async () => {
+                    const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(directLink)}`;
+                    const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error(`Codetabs failed: ${res.status}`);
+                    const contentType = res.headers.get('content-type') || '';
+                    if (contentType.includes('text/html')) throw new Error("Proxy returned HTML");
+                    return await res.arrayBuffer();
+                }
+            ];
+
+            for (let i = 0; i < fetchAttempts.length; i++) {
+                try {
+                    const buffer = await fetchAttempts[i]();
+                    if (buffer && buffer.byteLength > 1000) {
+                        rawDataBuffer = buffer;
+                        success = true;
+                        console.log(`Success on attempt ${i + 1}`);
+                        break;
+                    }
+                } catch (e) {
+                    console.warn(`Attempt ${i + 1} failed:`, e.message);
+                    lastErrorMessage = e.message;
+                }
+            }
+
+            try {
+                if (!success || !rawDataBuffer) {
+                    throw new Error(`Unable to connect to Dropbox. Common causes:
+1. The file is not shared publicly (Anyone with link).
+2. Network restrictions. Technical details: (${lastErrorMessage || 'Proxy block'}).`);
+                }
+                
+                const data = new Uint8Array(rawDataBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                const targetSheetName = workbook.SheetNames[1] || workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[targetSheetName];
+                
+                rawExcelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                if (rawExcelData.length === 0) {
+                    throw new Error('Excel file is empty or corrupted.');
+                }
+
+                renderTable(rawExcelData);
+                showStatus('success', 'Connected & Synced', 'Data successfully loaded from Dropbox.');
+                lastUpdatedText.textContent = `Last Update: ${new Date().toLocaleTimeString('en-US')}`;
+
+            } catch (error) {
+                console.error("Dashboard error:", error);
+                showStatus('error', 'Data Fetch Error', error.message);
+            } finally {
+                showLoadingState(false);
+            }
+        }
+
+        // --- Render Table Logic ---
+        function renderTable(rows, filterText = '') {
+            const thead = dataTable.querySelector('thead tr');
+            const tbody = dataTable.querySelector('tbody');
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+
+            if (rows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="100%" class="text-center py-12 text-gray-400">No data available</td></tr>`;
+                rowCountText.textContent = 'Rows displayed: 0';
+                return;
+            }
+
+            const excelHeaderRow = rows[0] || [];
+            const visibleIndices = appConfig.visibleColumns.map(num => parseInt(num) - 1).filter(i => !isNaN(i));
+
+            // Create Headers
+            visibleIndices.forEach((colIndex, idx) => {
+                const th = document.createElement('th');
+                th.className = 'px-6 py-4 text-sm font-semibold text-gray-700';
+                
+                const customName = appConfig.customColumnNames[idx];
+                const originalName = excelHeaderRow[colIndex];
+                th.textContent = customName || originalName || `Column ${colIndex + 1}`;
+                
+                thead.appendChild(th);
+            });
+
+            // Fill Rows
+            let matchCount = 0;
+            const searchLower = filterText.toLowerCase().trim();
+
+            for (let r = 1; r < rows.length; r++) {
+                const row = rows[r];
+                if (!row || row.length === 0 || row.every(val => val === undefined || val === '')) continue;
+
+                const mappedRow = visibleIndices.map(colIndex => row[colIndex] !== undefined ? String(row[colIndex]) : '');
+
+                if (searchLower) {
+                    const matchesSearch = mappedRow.some(cellText => cellText.toLowerCase().includes(searchLower));
+                    if (!matchesSearch) continue;
+                }
+
+                matchCount++;
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50/50 transition-colors';
+
+                mappedRow.forEach(cellText => {
+                    const td = document.createElement('td');
+                    td.className = 'px-6 py-4 text-gray-600 border-b border-gray-100 whitespace-nowrap';
+                    
+                    // Status coloring
+                    if (cellText === 'Completed' || cellText === 'Done' || cellText === 'Success' || cellText === 'مكتمل') {
+                        td.innerHTML = `<span class="bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-green-200">${cellText}</span>`;
+                    } else if (cellText === 'Processing' || cellText === 'Active' || cellText === 'In Progress' || cellText === 'قيد المعالجة') {
+                        td.innerHTML = `<span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-blue-200">${cellText}</span>`;
+                    } else if (cellText === 'Cancelled' || cellText === 'Stopped' || cellText === 'ملغي') {
+                        td.innerHTML = `<span class="bg-red-50 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-red-200">${cellText}</span>`;
+                    } else {
+                        td.textContent = cellText;
+                    }
+                    
+                    tr.appendChild(td);
+                });
+
+                tbody.appendChild(tr);
+            }
+
+            if (matchCount === 0) {
+                tbody.innerHTML = `<tr><td colspan="100%" class="text-center py-12 text-gray-400">No results match your search</td></tr>`;
+            }
+
+            rowCountText.textContent = `Rows displayed: ${matchCount}`;
+            lucide.createIcons();
+        }
+
+        // --- Search Event ---
+        searchInput.addEventListener('input', (e) => {
+            renderTable(rawExcelData, e.target.value);
+        });
+
+        // --- Status Management ---
+        function showStatus(type, title, desc) {
+            statusBanner.classList.remove('hidden', 'bg-blue-50', 'text-blue-800', 'bg-green-50', 'text-green-800', 'bg-red-50', 'text-red-800');
+            statusIcon.innerHTML = '';
+            retryBtn.classList.add('hidden');
+
+            if (type === 'loading') {
+                statusBanner.classList.add('bg-blue-50', 'text-blue-800');
+                statusIcon.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>`;
+            } else if (type === 'success') {
+                statusBanner.classList.add('bg-green-50', 'text-green-800');
+                statusIcon.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i>`;
+            } else if (type === 'error') {
+                statusBanner.classList.add('bg-red-50', 'text-red-800');
+                statusIcon.innerHTML = `<i data-lucide="alert-triangle" class="w-5 h-5"></i>`;
+                retryBtn.classList.remove('hidden');
+                retryBtn.textContent = 'Retry Connection';
+                retryBtn.onclick = fetchAndRenderData;
+            }
+
+            statusTitle.textContent = title;
+            statusDesc.textContent = desc;
+            lucide.createIcons();
+        }
+
+        function showLoadingState(isLoading) {
+            if (isLoading) {
+                spinIcon.classList.remove('hidden');
+            } else {
+                spinIcon.classList.add('hidden');
+            }
+        }
+
+        // --- Settings View Toggles ---
+        adminBtn.addEventListener('click', () => {
+            if (appConfig.pin) {
+                openPinModal();
+            } else {
+                showAdminView();
+            }
+        });
+
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsView.classList.add('hidden');
+            dashboardView.classList.remove('hidden');
+        });
+
+        function showAdminView() {
+            fillSettingsForm();
+            dashboardView.classList.add('hidden');
+            settingsView.classList.remove('hidden');
+        }
+
+        // --- PIN Modal ---
+        function openPinModal() {
+            pinModal.classList.remove('hidden');
+            pinInput.value = '';
+            pinError.classList.add('hidden');
+            pinInput.focus();
+        }
+
+        function closePinModal() {
+            pinModal.classList.add('hidden');
+        }
+
+        cancelPinBtn.addEventListener('click', closePinModal);
+
+        submitPinBtn.addEventListener('click', verifyPin);
+        pinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') verifyPin();
+        });
+
+        function verifyPin() {
+            if (pinInput.value === appConfig.pin) {
+                closePinModal();
+                showAdminView();
+            } else {
+                pinError.classList.remove('hidden');
+            }
+        }
+
+        // --- Form Submit & Save ---
+        settingsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const pinVal = adminPinInput.value.trim();
+            const urlVal = dropboxUrlInput.value.trim();
+            const titleVal = dashboardTitleInput.value.trim();
+            
+            const colsVal = visibleColumnsInput.value.split(',')
+                .map(item => parseInt(item.trim()))
+                .filter(num => !isNaN(num) && num > 0);
+
+            const customNamesVal = columnNamesInput.value.split(',')
+                .map(item => item.trim())
+                .filter(item => item !== '');
+
+            appConfig.pin = pinVal;
+            appConfig.dropboxUrl = urlVal;
+            appConfig.dashboardTitle = titleVal || 'Live Employee Dashboard';
+            appConfig.visibleColumns = colsVal.length > 0 ? colsVal : [1, 2, 3];
+            appConfig.customColumnNames = customNamesVal;
+
+            saveConfig();
+            
+            settingsView.classList.add('hidden');
+            dashboardView.classList.remove('hidden');
+            
+            fetchAndRenderData();
+        });
+
+        // --- Clear & Reset ---
+        clearSettingsBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear all settings?')) {
+                localStorage.removeItem('intervia_dashboard_config');
+                appConfig = {
+                    dropboxUrl: '',
+                    dashboardTitle: 'Live Employee Dashboard',
+                    visibleColumns: [1, 2, 3],
+                    customColumnNames: [],
+                    pin: ''
+                };
+                saveConfig();
+                location.reload();
+            }
+        });
+    </script>
+</body>
+</html>
