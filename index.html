@@ -17,6 +17,22 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+        /* Custom Scrollbar for better UX */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
@@ -27,7 +43,7 @@
             <div class="flex items-center gap-3">
                 <!-- Company Logo and Name integration -->
                 <div class="flex items-center gap-2">
-                    <!-- Replace the src below with your actual logo file path -->
+                    <!-- Ensure logo.png is in the same directory when deploying -->
                     <img src="logo.png" alt="Intervia Logo" class="h-10 w-auto object-contain" onerror="this.style.display='none'">
                     <span class="font-bold text-teal-700 text-xl tracking-wider hidden sm:block">INTERVIA</span>
                 </div>
@@ -83,10 +99,10 @@
 
             <!-- Live Data Table -->
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse" id="dataTable">
+                <div class="overflow-x-auto max-h-[70vh] overflow-y-auto">
+                    <table class="w-full text-left border-collapse table-fixed" id="dataTable">
                         <thead>
-                            <tr class="bg-gray-50 border-b border-gray-200 text-gray-600 text-xs font-bold tracking-wider">
+                            <tr class="bg-gray-50 border-b border-gray-200 text-gray-600 text-xs font-bold tracking-wider sticky top-0 z-10 shadow-sm">
                                 <!-- Dynamic Headers go here -->
                             </tr>
                         </thead>
@@ -199,7 +215,6 @@
 
     <script>
         // --- Encryption Setup (AES-GCM Simulation via CryptoJS) ---
-        // This is a static secret key embedded in the code for local encryption/decryption
         const SECRET_KEY = 'Intervia2026SecureKey!@#$%';
 
         function encryptText(text) {
@@ -213,7 +228,7 @@
                 const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
                 return bytes.toString(CryptoJS.enc.Utf8);
             } catch (e) {
-                return ''; // Return empty if decryption fails
+                return ''; 
             }
         }
 
@@ -221,7 +236,7 @@
         let appConfig = {
             dropboxUrl: '',
             dashboardTitle: 'Live Employee Dashboard',
-            visibleColumns: [1, 2, 3], // defaults
+            visibleColumns: [1, 2, 3],
             customColumnNames: [],
             pin: ''
         };
@@ -241,21 +256,18 @@
         const searchInput = document.getElementById('searchInput');
         const rowCountText = document.getElementById('rowCountText');
         
-        // Status Banner
         const statusBanner = document.getElementById('statusBanner');
         const statusIcon = document.getElementById('statusIcon');
         const statusTitle = document.getElementById('statusTitle');
         const statusDesc = document.getElementById('statusDesc');
         const retryBtn = document.getElementById('retryBtn');
 
-        // Pin Modal
         const pinModal = document.getElementById('pinModal');
         const pinInput = document.getElementById('pinInput');
         const pinError = document.getElementById('pinError');
         const submitPinBtn = document.getElementById('submitPinBtn');
         const cancelPinBtn = document.getElementById('cancelPinBtn');
 
-        // Form Inputs
         const adminPinInput = document.getElementById('adminPin');
         const dropboxUrlInput = document.getElementById('dropboxUrl');
         const dashboardTitleInput = document.getElementById('dashboardTitleInput');
@@ -271,13 +283,12 @@
             }
         });
 
-        // --- Config Operations with Encryption ---
+        // --- Config Operations ---
         function loadConfig() {
             const saved = localStorage.getItem('intervia_dashboard_config');
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    // Decrypt sensitive data
                     appConfig.dropboxUrl = decryptText(parsed.dropboxUrl) || '';
                     appConfig.pin = decryptText(parsed.pin) || '';
                     appConfig.dashboardTitle = parsed.dashboardTitle || 'Live Employee Dashboard';
@@ -293,7 +304,6 @@
         }
 
         function saveConfig() {
-            // Encrypt sensitive data before saving
             const payload = {
                 dropboxUrl: encryptText(appConfig.dropboxUrl),
                 pin: encryptText(appConfig.pin),
@@ -313,12 +323,10 @@
             columnNamesInput.value = appConfig.customColumnNames.join(', ');
         }
 
-        // --- Convert & Handle Link ---
         function convertToDirectLink(url) {
             try {
                 let directUrl = url.trim();
                 let urlObj = new URL(directUrl);
-                
                 if (urlObj.hostname === 'www.dropbox.com' || urlObj.hostname === 'dropbox.com') {
                     urlObj.hostname = 'dl.dropboxusercontent.com';
                 }
@@ -336,7 +344,6 @@
             }
         }
 
-        // --- Fetch & Render Data ---
         async function fetchAndRenderData() {
             if (!appConfig.dropboxUrl) return;
 
@@ -389,17 +396,13 @@
 
             try {
                 if (!success || !rawDataBuffer) {
-                    throw new Error(`Unable to connect to Dropbox. Common causes:
-1. The file is not shared publicly (Anyone with link).
-2. Network restrictions. Technical details: (${lastErrorMessage || 'Proxy block'}).`);
+                    throw new Error(`Unable to connect to Dropbox. Make sure the file is shared publicly. Details: (${lastErrorMessage})`);
                 }
                 
                 const data = new Uint8Array(rawDataBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
-                
                 const targetSheetName = workbook.SheetNames[1] || workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[targetSheetName];
-                
                 rawExcelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
                 if (rawExcelData.length === 0) {
@@ -418,7 +421,7 @@
             }
         }
 
-        // --- Render Table Logic ---
+        // --- Improved Rendering with Text Wrapping for Long Strings ---
         function renderTable(rows, filterText = '') {
             const thead = dataTable.querySelector('thead tr');
             const tbody = dataTable.querySelector('tbody');
@@ -434,14 +437,16 @@
             const excelHeaderRow = rows[0] || [];
             const visibleIndices = appConfig.visibleColumns.map(num => parseInt(num) - 1).filter(i => !isNaN(i));
 
-            // Create Headers
+            // Create Headers with specific width distribution
             visibleIndices.forEach((colIndex, idx) => {
                 const th = document.createElement('th');
-                th.className = 'px-6 py-4 text-sm font-semibold text-gray-700';
+                // Added w-auto to let the table flex naturally
+                th.className = 'px-6 py-4 text-sm font-semibold text-gray-700 w-auto max-w-[300px] truncate';
                 
                 const customName = appConfig.customColumnNames[idx];
                 const originalName = excelHeaderRow[colIndex];
                 th.textContent = customName || originalName || `Column ${colIndex + 1}`;
+                th.title = th.textContent; // Show full title on hover
                 
                 thead.appendChild(th);
             });
@@ -468,15 +473,16 @@
 
                 mappedRow.forEach(cellText => {
                     const td = document.createElement('td');
-                    td.className = 'px-6 py-4 text-gray-600 border-b border-gray-100 whitespace-nowrap';
+                    // IMPORTANT: added whitespace-normal, break-words, and max-w-xs to handle long text gracefully
+                    td.className = 'px-6 py-4 text-gray-600 border-b border-gray-100 whitespace-normal break-words max-w-[300px] min-w-[100px]';
                     
-                    // Status coloring
+                    // Status coloring (remains the same)
                     if (cellText === 'Completed' || cellText === 'Done' || cellText === 'Success' || cellText === 'مكتمل') {
-                        td.innerHTML = `<span class="bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-green-200">${cellText}</span>`;
+                        td.innerHTML = `<span class="bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-green-200 whitespace-nowrap inline-block">${cellText}</span>`;
                     } else if (cellText === 'Processing' || cellText === 'Active' || cellText === 'In Progress' || cellText === 'قيد المعالجة') {
-                        td.innerHTML = `<span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-blue-200">${cellText}</span>`;
+                        td.innerHTML = `<span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-blue-200 whitespace-nowrap inline-block">${cellText}</span>`;
                     } else if (cellText === 'Cancelled' || cellText === 'Stopped' || cellText === 'ملغي') {
-                        td.innerHTML = `<span class="bg-red-50 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-red-200">${cellText}</span>`;
+                        td.innerHTML = `<span class="bg-red-50 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold border border-red-200 whitespace-nowrap inline-block">${cellText}</span>`;
                     } else {
                         td.textContent = cellText;
                     }
@@ -495,12 +501,10 @@
             lucide.createIcons();
         }
 
-        // --- Search Event ---
         searchInput.addEventListener('input', (e) => {
             renderTable(rawExcelData, e.target.value);
         });
 
-        // --- Status Management ---
         function showStatus(type, title, desc) {
             statusBanner.classList.remove('hidden', 'bg-blue-50', 'text-blue-800', 'bg-green-50', 'text-green-800', 'bg-red-50', 'text-red-800');
             statusIcon.innerHTML = '';
@@ -533,7 +537,6 @@
             }
         }
 
-        // --- Settings View Toggles ---
         adminBtn.addEventListener('click', () => {
             if (appConfig.pin) {
                 openPinModal();
@@ -553,7 +556,6 @@
             settingsView.classList.remove('hidden');
         }
 
-        // --- PIN Modal ---
         function openPinModal() {
             pinModal.classList.remove('hidden');
             pinInput.value = '';
@@ -566,7 +568,6 @@
         }
 
         cancelPinBtn.addEventListener('click', closePinModal);
-
         submitPinBtn.addEventListener('click', verifyPin);
         pinInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') verifyPin();
@@ -581,7 +582,6 @@
             }
         }
 
-        // --- Form Submit & Save ---
         settingsForm.addEventListener('submit', (e) => {
             e.preventDefault();
 
@@ -607,11 +607,9 @@
             
             settingsView.classList.add('hidden');
             dashboardView.classList.remove('hidden');
-            
             fetchAndRenderData();
         });
 
-        // --- Clear & Reset ---
         clearSettingsBtn.addEventListener('click', () => {
             if (confirm('Are you sure you want to clear all settings?')) {
                 localStorage.removeItem('intervia_dashboard_config');
